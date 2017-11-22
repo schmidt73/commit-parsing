@@ -1,0 +1,44 @@
+    commit <*> nope   --> error      (source of blame unclear)
+    commit <*> commit = commit
+    commit <*> good   = commit
+    commit <*> error  = error
+
+    good   <*> nope   = nope
+    good   <*> commit = commit
+    good   <*> good   = good
+    good   <*> error  = error
+
+    error  <*> nope   = error
+    error  <*> commit = error
+    error  <*> good   = error
+    error  <*> error  = error
+
+    nope   <*> nope   = nope
+    nope   <*> commit = commit
+    nope   <*> good   = commit
+    nope   <*> error  = error
+
+----------------------------------------------------------------
+
+Alternate sort:
+
+    error  <*> nope   = error
+    commit <*> nope   --> error      (source of blame unclear)
+    good   <*> nope   = nope
+    nope   <*> nope   = nope
+
+    commit <*> commit = commit
+    good   <*> commit = commit
+    nope   <*> commit = commit
+    error  <*> commit = error
+
+    commit <*> error  = error
+    error  <*> error  = error
+    good   <*> error  = error
+    nope   <*> error  = error
+
+    commit <*> good   = commit
+    nope   <*> good   = commit
+    error  <*> good   = error
+    good   <*> good   = good
+
