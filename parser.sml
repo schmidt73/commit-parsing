@@ -75,7 +75,8 @@ struct
        | (xs', ERROR e) => (xs', ERROR e)
        | (xs', NOPE) => (xs, NOPE)
        | (xs', COMMIT a) => (case (f a) xs' of
-                                  (xs'', NOPE) => (xs'', ERROR default)
+                                  (xs'', SUCCESS a) => (xs'', COMMIT a)
+                                | (xs'', NOPE) => (xs'', ERROR default)
                                 | def => def)
 
   fun p <|> p' = fn xs =>
