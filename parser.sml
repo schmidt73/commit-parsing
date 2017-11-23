@@ -12,6 +12,9 @@ sig
 
   type 'a parser
 
+  datatype ('a, 'b) either = LEFT of 'a
+                           | RIGHT of 'b
+
   (*
    * Although error and nope might seem similar, one should note
    * that errors are unrecoverable whereas nopes are recoverable.
@@ -43,12 +46,17 @@ sig
    *)
   val commits : 'a parser -> 'a parser
   val nocommits : 'a parser -> 'a parser
+
+  val runParser : 'a parser -> string -> string * ('a, error) either
 end ;
 
 
 functor ParserFun(E:ERROR) : PARSER =
 struct 
   type error = E.error
+
+  datatype ('a, 'b) either = LEFT of 'a
+                           | RIGHT of 'b
 
   datatype 'a result = SUCCESS of 'a
                      | COMMIT of 'a
@@ -107,5 +115,13 @@ struct
     case p xs of
          (xs', COMMIT a) => (xs', SUCCESS a)
        | def => def
+
+  fun runParser p str = 
+    case p (explode str) of
+         (xs, ERROR e) => (implode xs, RIGHT e)
+       | (xs, NOPE) => (implode xs, RIGHT default)
+       | (xs, SUCCESS a) => (implode xs, LEFT a)
+       | (xs, COMMIT a) => (implode xs, LEFT a)
+ 
 
 end
