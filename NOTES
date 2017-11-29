@@ -62,3 +62,18 @@ commits p <*> q).  Commitment is irrevocable ☺
 commits (many p) /= many (commits p)  -- empty case
 
 commits (many1 p) == many1 (commits p) ???
+
+----------------------------------------------------------------
+Notes on commit of Nov 23:
+
+  val option : 'a option parser -> 'a parser
+
+  Char.isDigit
+
+  avoid 'use', 'open'
+
+  how to deal with EOF?
+
+  PARSER sig should include error type but not ERROR sig
+
+  datatype 'a result = OK of 'a | ERROR of error
