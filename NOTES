@@ -1,0 +1,64 @@
+If parser p produces outcome 'nope', then what outcome should
+'commits p' produce?  I'm kind of leaning toward error, but I don't
+really know.  This qusetion might be important toward an eventual
+paper.  It maybe worth trying both alternatives to see which proves
+more useful.
+
+
+
+Yes that is the core of my question. What should commits p <*> nope be
+and what should (uncommits . commits) p <*> nope be?
+
+I think the key question is what possible outcomes (commits p) can
+have.  I am pretty confident that `nope` should be possible, because I
+want the commitment to occur only if parsing succeeds.  The idea of
+commitment is that it happens *after* consuming input.
+
+So if we are evaluating (commits p <*> q) on input, and the result of
+evaluating p is `nope`, then the result of the whole parser is `nope`,
+regardless of what q is.  (In fact q is not evaluated.)
+
+I hope you buy it ☺
+
+Example:  curry3 IF <$> nocommits (literal "(") *> commits (literal
+"if") *> exp <*> exp <*> exp
+
+Oops forgot the closing bracket
+
+So I'm using `commits` and `nocommits` to control the exact commit
+point, but commitment needs to happen only on success.
+
+It might be illuminating to work out algebraic laws for the three
+operators commits, nocommits, and <*>.  For example, is it true that
+(commits (p <*> q) == p <*> commits q)?
+
+I would hope for this to be the case.
+
+
+(This is why I'm leaning toward the change in representation; it may
+help us emphasize "for there to be commitment, there must be
+success.")
+
+
+
+
+I think maybe also (commits p <*> commits q == commits p <*> q).  Once
+you're committed, further commitment on the same sequence is
+redundant.)
+
+
+Ooh, good question.  I think it probably gets absorbed.  But I would
+want to prove it.  (commits p <*> nocommits q) would prevent q from
+committing.  But with the commit <*> _, the laws say the only possible
+outcomes are commit and error.  So (commits p <*> nocommits q ==
+commits p <*> q).  Commitment is irrevocable ☺
+
+
+
+2. Parser 'many p' always succeeds.  When does it commit?  Is that the
+   behavior we want?
+
+
+commits (many p) /= many (commits p)  -- empty case
+
+commits (many1 p) == many1 (commits p) ???
