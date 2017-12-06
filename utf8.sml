@@ -63,7 +63,9 @@ struct
             infix 5 << &&
             val op << = Word.<<
             val op && = Word.andb
-        in  if w <= 0xwbf then
+        in  if w < 0wx80 then
+              raise NotUTF8
+            else if w <= 0xwbf then
               decode ((prefix << 0w6) + (w && 0xw3f)) (n - 1) cs
             else
               raise NotUTF8
