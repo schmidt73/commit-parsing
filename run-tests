@@ -1,0 +1,3 @@
+#!/bin/sh
+
+./sml-compile tests/main.cm

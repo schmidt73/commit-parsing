@@ -8,12 +8,10 @@ end
 
 signature PARSER = 
 sig
-  include ERROR
-
+  type error
   type 'a parser
 
-  datatype ('a, 'b) either = LEFT of 'a
-                           | RIGHT of 'b
+  datatype 'a outcome = OK of 'a | ERR of error
 
   (*
    * Although error and nope might seem similar, one should note
@@ -32,9 +30,13 @@ sig
   val >>= : 'a parser * ('a -> 'b parser) -> 'b parser
   val <|> : 'a parser * 'a parser -> 'a parser
 
+  val *> : 'a parser * 'b parser -> 'b parser
+  val <* : 'a parser * 'b parser -> 'a parser
+
   val eof : unit parser
   val one : char parser
   val sat : ('a -> bool) -> 'a parser -> 'a parser
+  val option : ('a option) parser -> 'a parser
 
   val many : 'a parser -> ('a list) parser
   val many1 : 'a parser -> ('a list) parser
@@ -47,16 +49,15 @@ sig
   val commits : 'a parser -> 'a parser
   val nocommits : 'a parser -> 'a parser
 
-  val runParser : 'a parser -> string -> string * ('a, error) either
+  val runParser : 'a parser -> string -> string * 'a outcome
 end ;
 
 
-functor ParserFun(E:ERROR) : PARSER =
+functor ParserFun(E:ERROR) :> PARSER =
 struct 
   type error = E.error
 
-  datatype ('a, 'b) either = LEFT of 'a
-                           | RIGHT of 'b
+  datatype 'a outcome = OK of 'a | ERR of error
 
   datatype 'a result = SUCCESS of 'a
                      | COMMIT of 'a
@@ -65,16 +66,13 @@ struct
 
   type 'a parser = char list -> char list * 'a result
 
-  val default = E.default
-  val toString = E.toString
-
   fun error e = fn xs => (xs, ERROR e)
   fun succeed a = fn xs => (xs, SUCCESS a)
   val nope = fn xs => (xs, NOPE)
 
   infix 2 <|>
   infix 3 >>=
-  infix 4 <*>
+  infix 4 <*> <* *>
   infix 5 <$>
 
   fun p >>= f = fn xs =>
@@ -84,7 +82,7 @@ struct
        | (xs', NOPE) => (xs, NOPE)
        | (xs', COMMIT a) => (case (f a) xs' of
                                   (xs'', SUCCESS a) => (xs'', COMMIT a)
-                                | (xs'', NOPE) => (xs'', ERROR default)
+                                | (xs'', NOPE) => (xs'', ERROR E.default)
                                 | def => def)
 
   fun p <|> p' = fn xs =>
@@ -95,6 +93,9 @@ struct
   fun pf <*> pa = pf >>= (fn f => pa >>= (fn a => succeed (f a)))
   fun f <$> p = succeed f <*> p
 
+  fun pa *> pb = (fn _ => fn b => b) <$> pa <*> pb
+  fun pa <* pb = (fn a => fn _ => a) <$> pa <*> pb
+
   fun one [] = nope []
     | one (x::xs) = (succeed x) xs
     
@@ -102,6 +103,9 @@ struct
     | eof xs = nope []
 
   fun sat pred p = p >>= (fn a => if pred a then succeed a else nope)
+  fun option p = p >>= (fn NONE => nope | SOME a => succeed a)
+
+  fun curry f x y = f (x, y)
 
   fun many p = fn cs => ((curry op :: <$> p <*> many p) <|> succeed []) cs
   fun many1 p = curry op :: <$> p <*> many p
@@ -118,10 +122,9 @@ struct
 
   fun runParser p str = 
     case p (explode str) of
-         (xs, ERROR e) => (implode xs, RIGHT e)
-       | (xs, NOPE) => (implode xs, RIGHT default)
-       | (xs, SUCCESS a) => (implode xs, LEFT a)
-       | (xs, COMMIT a) => (implode xs, LEFT a)
- 
+         (xs, ERROR e) => (implode xs, ERR e)
+       | (xs, NOPE) => (implode xs, ERR E.default)
+       | (xs, SUCCESS a) => (implode xs, OK a)
+       | (xs, COMMIT a) => (implode xs, OK a)
 
 end
