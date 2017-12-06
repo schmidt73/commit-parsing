@@ -53,7 +53,7 @@ sig
 end ;
 
 
-functor ParserFun(E:ERROR) :> PARSER =
+functor ParserFun(E:ERROR) : PARSER =
 struct 
   type error = E.error
 
