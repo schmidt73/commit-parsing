@@ -39,7 +39,7 @@ struct
     val default = "Bad json."
   end
 
-  structure P = ParserFun(ParserError)
+  structure P = ParserFun(ParserError)(struct type token = char end)
 
   val <|> = P.<|>; val >>= = P.>>=; val <*> = P.<*>
   val *> = P.*>; val <* = P.<*; val <$> = P.<$>
@@ -149,7 +149,7 @@ struct
     fn cs => (alt [jString, jNull, jBool, jNumber, jArray (), jObject ()]) cs
  
   fun parseJSON str = 
-    case (P.runParser (jValue ()) str) of
+    case (P.runParser (jValue ()) (explode str)) of
          (_, P.OK a) => OK a
        | (_, P.ERR s) => ERR s
 

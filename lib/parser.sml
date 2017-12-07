@@ -6,10 +6,18 @@ sig
   val toString : error -> string
 end
 
+signature TOKEN =
+sig 
+  type token
+end
+
 signature PARSER = 
 sig
+  type token
   type error
-  type 'a parser
+  type 'a result
+
+  type 'a parser = token list -> token list * 'a result
 
   datatype 'a outcome = OK of 'a | ERR of error
 
@@ -34,7 +42,7 @@ sig
   val <* : 'a parser * 'b parser -> 'a parser
 
   val eof : unit parser
-  val one : char parser
+  val one : token parser
   val sat : ('a -> bool) -> 'a parser -> 'a parser
   val option : ('a option) parser -> 'a parser
 
@@ -49,13 +57,16 @@ sig
   val commits : 'a parser -> 'a parser
   val nocommits : 'a parser -> 'a parser
 
-  val runParser : 'a parser -> string -> string * 'a outcome
+  val runParser : 'a parser -> token list -> token list * 'a outcome
 end ;
 
 
-functor ParserFun(E:ERROR) : PARSER =
+functor ParserFun (E:ERROR) (T:TOKEN) :>
+  PARSER where type error = E.error 
+           and type token = T.token =
 struct 
   type error = E.error
+  type token = T.token
 
   datatype 'a outcome = OK of 'a | ERR of error
 
@@ -64,7 +75,7 @@ struct
                      | ERROR of error
                      | NOPE
 
-  type 'a parser = char list -> char list * 'a result
+  type 'a parser = token list -> token list * 'a result
 
   fun error e = fn xs => (xs, ERROR e)
   fun succeed a = fn xs => (xs, SUCCESS a)
@@ -120,11 +131,11 @@ struct
          (xs', COMMIT a) => (xs', SUCCESS a)
        | def => def
 
-  fun runParser p str = 
-    case p (explode str) of
-         (xs, ERROR e) => (implode xs, ERR e)
-       | (xs, NOPE) => (implode xs, ERR E.default)
-       | (xs, SUCCESS a) => (implode xs, OK a)
-       | (xs, COMMIT a) => (implode xs, OK a)
+  fun runParser p xs = 
+    case p xs of
+         (xs, ERROR e) => (xs, ERR e)
+       | (xs, NOPE) => (xs, ERR E.default)
+       | (xs, SUCCESS a) => (xs, OK a)
+       | (xs, COMMIT a) => (xs, OK a)
 
 end
