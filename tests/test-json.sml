@@ -1,7 +1,10 @@
-structure JSONTests =
+functor TestJSONParser(JP:JSON_PARSER) :> 
+sig 
+  val tests : (bool * string) list
+end
+  =
 struct
-  structure J = JSONParser
-  open J
+  open JP
 
   fun zipWith f _ [] = []
     | zipWith f [] _ = []
@@ -17,7 +20,9 @@ struct
     | jEq (OBJ x1, OBJ x2) = all (zipWith memberEq x1 x2)
     | jEq (ARR x1, ARR x2) = all (zipWith jEq x1 x2)
     | jEq _ = false
-  and memberEq ((x1, x2), (y1, y2)) = x1 = y1 andalso (jEq (x2, y2))
+  and memberEq ((x1, x2), (y1, y2)) = x1 = y1 andalso (jEq (x2, y2)) 
+
+  fun jEqs (xs, expected) = all (zipWith jEq xs expected)
 
   val test1 = 
     let 
@@ -25,16 +30,33 @@ struct
         "{\"hello darkness\": {\"my\" : \"old friend.\"}, ",
         "\"arr\": [123e+5, 100e-3]}"
       ]
-      val expected = OBJ [
+      val expected = [OBJ [
         ("hello darkness", OBJ [("my", STR "old friend.")]),
         ("arr", ARR [NUM 12300000.0, NUM 0.1])
-      ]
+      ]]
       val output = parseJSON json
       val passed = case output of
                        ERR _ => false
-                     | OK a => jEq (a, expected)
-   in
+                     | OK xs => jEqs (xs, expected)
+    in
       (passed, "Simple JSON test.")
     end
 
+  val test2 = 
+    let 
+      val json = "{\"hell\\b\\f\\\\ \\t\\u000axs\" : null }"
+      val expectedStr = "hell\b\f\\ \t\nxs"
+      val expected = [OBJ [(expectedStr, NULL)]]
+      val output = parseJSON json
+      val passed = case output of
+                       ERR _ => false
+                     | OK xs => jEqs (xs, expected)      
+    in
+      (passed, "Escape sequence test.")
+    end
+
+  val tests = [test1, test2]
 end
+
+structure JParserTests = TestJSONParser(JSONParser)
+structure JParserWithLexerTests = TestJSONParser(JSONParserFromLexer(JSONLexer))

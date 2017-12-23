@@ -21,14 +21,12 @@ sig
 
   datatype 'a outcome = OK of 'a | ERR of error
 
-  (*
-   * Although error and nope might seem similar, one should note
+  (* Although error and nope might seem similar, one should note
    * that errors are unrecoverable whereas nopes are recoverable.
    *
    * Example: 
    *          nope <|> succeed a == succeed a
-   *          error e <|> _ == error e
-   *)
+   *          error e <|> _ == error e *)
   val error : error -> 'a parser (* A parser that always errors *)
   val succeed : 'a -> 'a parser (* A parser that always succeeds *)
   val nope : 'a parser (* A parser that fails to recognize its input *)
@@ -46,14 +44,25 @@ sig
   val sat : ('a -> bool) -> 'a parser -> 'a parser
   val option : ('a option) parser -> 'a parser
 
+ (* 
+  * A parser that will always succeed, 
+  * attempting to consume input of type a. *)
+  val optional : 'a parser -> unit parser 
+
   val many : 'a parser -> ('a list) parser
   val many1 : 'a parser -> ('a list) parser
 
-  (* 
-   * Committing a parser means that on success, the parser "commits" to 
-   * its path ensuring that the only two outcomes are producing a value or
-   * a parser error.
-   *)
+  val alt : ('a parser) list -> 'a parser
+  val sequence : ('a parser) list -> ('a list) parser
+
+ (* A parser that looks at the next token without 
+  * consuming any input, if it fails to consume 
+  * input it will nope *)
+  val lookahead : token parser
+
+ (* Committing a parser means that on success, the parser "commits" to 
+  * its path ensuring that the only two outcomes are producing a value or
+  * a parser error. *)
   val commits : 'a parser -> 'a parser
   val nocommits : 'a parser -> 'a parser
 
@@ -61,7 +70,7 @@ sig
 end ;
 
 
-functor ParserFun (E:ERROR) (T:TOKEN) :>
+functor Parser (E:ERROR) (T:TOKEN) :>
   PARSER where type error = E.error 
            and type token = T.token =
 struct 
@@ -109,6 +118,9 @@ struct
 
   fun one [] = nope []
     | one (x::xs) = (succeed x) xs
+
+    
+  fun optional p = (p *> succeed ()) <|> succeed ()
     
   fun eof [] = (succeed ()) []
     | eof xs = nope []
@@ -120,6 +132,14 @@ struct
 
   fun many p = fn cs => ((curry op :: <$> p <*> many p) <|> succeed []) cs
   fun many1 p = curry op :: <$> p <*> many p
+
+  fun alt xs = foldr (op <|>) nope xs
+
+  fun sequence [] = succeed []
+    | sequence (x :: xs) = curry op :: <$> x <*> sequence xs
+
+  fun lookahead [] = nope []
+    | lookahead (x :: xs) = (x::xs, SUCCESS x)
 
   fun commits p = fn xs =>
     case p xs of

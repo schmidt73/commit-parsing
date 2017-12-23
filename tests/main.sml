@@ -43,8 +43,9 @@ end
 
 structure Main = 
 struct 
-  val _ = Tests.runTests [
-    (true, "This message will never be seen."),
-    JSONTests.test1
+  val tests = List.concat [
+    JParserTests.tests,
+    JParserWithLexerTests.tests
   ]
+  val _ = Tests.runTests tests
 end
