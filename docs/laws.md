@@ -1,11 +1,11 @@
-Parsing laws
+Parsing Laws
 ------------
 A parser may have one of these four outcomes:
 
   - *Committed* recognizes the input and is committed to it.
   - *Good* recognizes the input but is not committed to it.
   - *Nope* doesn't recognize the input.
-  - *Error* has found a syntax error.
+  - *Failure* has found an unrecoverable error.
 
 Notes:
 
@@ -16,25 +16,22 @@ Notes:
 Different outcomes carry values.
 
   - A *good* or *committed* outcome carries a value of type `a`.
-  - A *nope* outcome carries no value.
-  - An *error* outcome carries a value that might have these parts:
-      - An error message (perhaps parametric)
-      - A region in the source code
-      - One of Evan's "contexts"
-
+  - A *nope* or *failure* outcome carries an error messsage.
 
 Here are some algebraic laws for outcomes.  (I abuse Applicative
 notation.)  The wildcard `_` suggests "not evaluated," and outcome `p`
 (for "parser") designates an arbitrary outcome.
 
-    commit <*> nope   --> error      (source of blame unclear)
-    commit <*> commit = commit
-    commit <*> good   = commit
-    error  <*> _      = error
-    p      <*> error  = error
-    nope   <*> _      = nope
-    good   <*> p      = p
+    commit  <*> commit  = commit
+    commit  <*> good    = commit
+    commit  <*> nope    = failure      
+    commit  <*> failure = failure
 
+    failure <*> _       = failure
+    _       <*> failure = failure
+
+    nope    <*> _       = nope
+    good    <*> p       = p
 
 Usability
 ---------
@@ -46,8 +43,8 @@ Evan suggests that, for usability,
 
 Whatever the defaults, it's easy to define
 
-   commits  :: Parser a -> Parser a
-   nocommit :: Parser a -> Parser a
+   commits : 'a parser -> 'a parser
+   nocommit : 'a parser -> 'a parser
 
 with these laws:
 
@@ -58,7 +55,7 @@ with these laws:
 
 It's also possible to define a parser that always commits:
 
-   commit :: Parser ()
+   commit : unit parser
 
 I don't see how to turn commitment *off* in pointlike fashion,
 however.

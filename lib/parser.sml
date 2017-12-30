@@ -21,15 +21,30 @@ sig
 
   datatype 'a outcome = OK of 'a | ERR of error
 
-  (* Although error and nope might seem similar, one should note
-   * that errors are unrecoverable whereas nopes are recoverable.
+  (* Although failure and nope might seem similar, one should note
+   * that failure is unrecoverable whereas nopes are recoverable.
+   * Both produce the default error message.
    *
    * Example: 
    *          nope <|> succeed a == succeed a
-   *          error e <|> _ == error e *)
-  val error : error -> 'a parser (* A parser that always errors *)
-  val succeed : 'a -> 'a parser (* A parser that always succeeds *)
+   *          fail <|> _ == fail
+   *)
+  val fail : 'a parser (* A parser that always fails *)
   val nope : 'a parser (* A parser that fails to recognize its input *)
+
+  (* Converts the parser to one that produces the error message
+   * on failure. 
+   *
+   * It is important to note that: 
+   *    withError e nope != withError e fail
+   *
+   * The first is a parser that does not recognize input and
+   * will produce the error e if committed. The second will
+   * always fail with the error e.
+   *)
+  val withError : error -> 'a parser -> 'a parser
+
+  val succeed : 'a -> 'a parser (* A parser that always succeeds *)
 
   val <$> : ('a -> 'b) * 'a parser -> 'b parser
   val <*> : ('a -> 'b) parser * 'a parser -> 'b parser
@@ -44,8 +59,7 @@ sig
   val sat : ('a -> bool) -> 'a parser -> 'a parser
   val option : ('a option) parser -> 'a parser
 
- (* 
-  * A parser that will always succeed, 
+ (* A parser that will always succeed, 
   * attempting to consume input of type a. *)
   val optional : 'a parser -> unit parser 
 
@@ -67,8 +81,7 @@ sig
   val nocommits : 'a parser -> 'a parser
 
   val runParser : 'a parser -> token list -> token list * 'a outcome
-end ;
-
+end
 
 functor Parser (E:ERROR) (T:TOKEN) :>
   PARSER where type error = E.error 
@@ -81,14 +94,21 @@ struct
 
   datatype 'a result = SUCCESS of 'a
                      | COMMIT of 'a
-                     | ERROR of error
-                     | NOPE
+                     | FAILURE of error
+                     | NOPE of error
 
   type 'a parser = token list -> token list * 'a result
 
-  fun error e = fn xs => (xs, ERROR e)
+  val fail = fn xs => (xs, FAILURE E.default)
+  val nope = fn xs => (xs, NOPE E.default)
+
+  fun withError e p = fn xs =>
+    case p xs of
+         (xs', FAILURE _) => (xs', FAILURE e)
+       | (xs', NOPE _) => (xs', NOPE e)
+       | def => def
+
   fun succeed a = fn xs => (xs, SUCCESS a)
-  val nope = fn xs => (xs, NOPE)
 
   infix 2 <|>
   infix 3 >>=
@@ -98,16 +118,16 @@ struct
   fun p >>= f = fn xs =>
     case p xs of 
          (xs', SUCCESS a) => (f a) xs'
-       | (xs', ERROR e) => (xs', ERROR e)
-       | (xs', NOPE) => (xs, NOPE)
+       | (xs', FAILURE e) => (xs', FAILURE e)
+       | (xs', NOPE e) => (xs, NOPE e)
        | (xs', COMMIT a) => (case (f a) xs' of
                                   (xs'', SUCCESS a) => (xs'', COMMIT a)
-                                | (xs'', NOPE) => (xs'', ERROR E.default)
+                                | (xs'', NOPE e) => (xs'', FAILURE e)
                                 | def => def)
 
   fun p <|> p' = fn xs =>
     case p xs of 
-         (_, NOPE) => p' xs
+         (_, NOPE _) => p' xs
        | def => def
 
   fun pf <*> pa = pf >>= (fn f => pa >>= (fn a => succeed (f a)))
@@ -118,7 +138,6 @@ struct
 
   fun one [] = nope []
     | one (x::xs) = (succeed x) xs
-
     
   fun optional p = (p *> succeed ()) <|> succeed ()
     
@@ -153,8 +172,8 @@ struct
 
   fun runParser p xs = 
     case p xs of
-         (xs, ERROR e) => (xs, ERR e)
-       | (xs, NOPE) => (xs, ERR E.default)
+         (xs, FAILURE e) => (xs, ERR e)
+       | (xs, NOPE e) => (xs, ERR e)
        | (xs, SUCCESS a) => (xs, OK a)
        | (xs, COMMIT a) => (xs, OK a)
 
