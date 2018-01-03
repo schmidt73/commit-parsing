@@ -1,4 +1,4 @@
-structure PARSER = JSONParserFromLexer(JSONLexer)
+structure PARSER = JSONParserFromLexer
 structure V = JSONValidatorFromParser(PARSER)
 
 structure ValidatorTests :>

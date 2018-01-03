@@ -1,3 +1,18 @@
+signature JSON = 
+sig
+  datatype jvalue = STR of string (* Would like to use WideString *)
+                  | NUM of real
+                  | OBJ of jobject 
+                  | ARR of jarray 
+                  | BOOL of bool
+                  | NULL
+  withtype member = string * jvalue
+       and jobject = member list
+       and jarray = jvalue list
+
+  val toString : jvalue -> string
+end
+
 signature JSON_LEXER = 
 sig
   datatype structural = LBRACKET
@@ -26,15 +41,9 @@ end
 
 signature JSON_PARSER = 
 sig
-  datatype jvalue = STR of string (* Would like to use WideString *)
-                  | NUM of real
-                  | OBJ of jobject 
-                  | ARR of jarray 
-                  | BOOL of bool
-                  | NULL
-  withtype member = string * jvalue
-       and jobject = member list
-       and jarray = jvalue list
+  structure JSON : JSON
+
+  type jvalue = JSON.jvalue
 
   datatype result = OK of jvalue list | ERR of string
 
@@ -89,6 +98,33 @@ struct
     | pow' (a, n) = a * pow' (a, n - 1)
   fun pow a n = if n < 0 then pow' (1.0 / a, ~n)
                 else pow' (a, n)
+end
+
+structure JSON :> JSON =
+struct
+  datatype jvalue = STR of string (* Would like to use WideString *)
+                  | NUM of real
+                  | OBJ of jobject 
+                  | ARR of jarray 
+                  | BOOL of bool
+                  | NULL
+  withtype member = string * jvalue
+       and jobject = member list
+       and jarray = jvalue list
+
+  fun concatMap f xs = concat (map f xs)
+
+  fun indent str = 
+    concatMap (fn str => "\t" ^ str ^ "\n") (String.tokens (fn c => c = #"\n") str)
+
+  fun toString (STR x) = "\"" ^ x ^ "\""
+    | toString (NUM x) = Real.toString x
+    | toString (BOOL x) = Bool.toString x
+    | toString (NULL) = "null"
+    | toString (OBJ xs) = "{\n" ^ indent (concatMap memberToString xs) ^ "},\n"
+    | toString (ARR xs) = "[" ^ (concatMap arrToString xs) ^ "]"
+  and memberToString (str, v) = "\"" ^ str ^ "\"" ^ " : " ^ (toString v) 
+  and arrToString str = (toString str) ^ ", "
 end
 
 structure JSONLexer :> JSON_LEXER = 
@@ -245,23 +281,15 @@ struct
   fun toString toks = String.concatWith "\n" (map tokToString toks)
 end
 
-functor JSONParserFromLexer (L:JSON_LEXER) :> JSON_PARSER =
+functor JSONParserFunFromLexerFun (L:JSON_LEXER)(J:JSON) :> JSON_PARSER =
 struct
-  datatype jvalue = STR of string (* Would like to use WideString *)
-                  | NUM of real
-                  | OBJ of jobject 
-                  | ARR of jarray 
-                  | BOOL of bool
-                  | NULL
-  withtype member = string * jvalue
-       and jobject = member list
-       and jarray = jvalue list
+  structure JSON = J
+  open JSON
 
   datatype result = OK of jvalue list | ERR of string
 
   open Utility
   
-  (* TODO: Improve error messages. *) 
   structure ParserError = 
   struct
     type error = string
@@ -283,8 +311,6 @@ struct
   infix 5 <$>
 
   val oneTok = fst <$> P.one
-
-  (* Lenses to the rescue? *)
 
   fun literalL (L.LIT (L.STR str)) = SOME (STR str)
     | literalL (L.LIT (L.NUM x)) = SOME (NUM x)
@@ -364,17 +390,10 @@ struct
        | (L.OK toks) => parseJSON' toks
 end
 
-structure JSONParser :> JSON_PARSER = 
+functor JSONParserFun(J:JSON) :> JSON_PARSER = 
 struct
-  datatype jvalue = STR of string (* Would like to use WideString *)
-                  | NUM of real
-                  | OBJ of jobject 
-                  | ARR of jarray 
-                  | BOOL of bool
-                  | NULL
-  withtype member = string * jvalue
-       and jobject = member list
-       and jarray = jvalue list
+  structure JSON = J
+  open JSON
 
   datatype result = OK of jvalue list | ERR of string
 
@@ -448,7 +467,6 @@ struct
 
   val num = isNeg >>= (fn a => (if a then (op ~) else id) <$> posPart)
 
-  (* Parsers for json values *)
   val jString = STR <$> string
   val jNull = strSat "null" *> P.succeed NULL
   val jBool = strSat "true" *> P.succeed (BOOL true) <|>
@@ -478,20 +496,7 @@ struct
 
 
   (*
-  fun concatMap f xs = concat (map f xs)
-
-  fun indent str = 
-    concatMap (fn str => "\t" ^ str ^ "\n") (String.tokens (fn c => c = #"\n") str)
-
-  fun toString (STR x) = "\"" ^ x ^ "\""
-    | toString (NUM x) = Real.toString x
-    | toString (BOOL x) = Bool.toString x
-    | toString (NULL) = "null"
-    | toString (OBJ xs) = "{\n" ^ indent (concatMap memberToString xs) ^ "},\n"
-    | toString (ARR xs) = "[" ^ (concatMap arrToString xs) ^ "]"
-  and memberToString (str, v) = "\"" ^ str ^ "\"" ^ " : " ^ (toString v) 
-  and arrToString str = (toString str) ^ ", "
-  *)
+ *)
 end
 
 functor JSONValidatorFromParser(P:JSON_PARSER) :> JSON_VALIDATOR =
@@ -515,3 +520,6 @@ struct
          VALID => print "JSON is valid.\n"
        | (ERR e) => print ("JSON is invalid.\nError: " ^ e ^ "\n")
 end
+
+structure JSONParser = JSONParserFun(JSON)
+structure JSONParserFromLexer = JSONParserFunFromLexerFun(JSONLexer)(JSON)

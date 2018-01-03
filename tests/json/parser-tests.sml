@@ -5,6 +5,7 @@ end
   =
 struct
   open JP
+  open JP.JSON
 
   fun zipWith f _ [] = []
     | zipWith f [] _ = []
@@ -60,4 +61,4 @@ struct
 end
 
 structure JParserTests = TestJSONParser(JSONParser)
-structure JParserWithLexerTests = TestJSONParser(JSONParserFromLexer(JSONLexer))
+structure JParserWithLexerTests = TestJSONParser(JSONParserFromLexer)
