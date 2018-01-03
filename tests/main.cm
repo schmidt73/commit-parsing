@@ -1,7 +1,6 @@
 Group is
   main.sml
-  json.sml
-  test-json.sml
+  json/json.cm
   ../lib/parser.cm
   $/basis.cm
   $/smlnj-lib.cm

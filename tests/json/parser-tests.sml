@@ -22,7 +22,8 @@ struct
     | jEq _ = false
   and memberEq ((x1, x2), (y1, y2)) = x1 = y1 andalso (jEq (x2, y2)) 
 
-  fun jEqs (xs, expected) = all (zipWith jEq xs expected)
+  fun jEqs (xs, expected) = 
+    (length xs = length expected) andalso (all (zipWith jEq xs expected))
 
   val test1 = 
     let 

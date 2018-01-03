@@ -5,6 +5,9 @@ structure UTF8 :> sig
 end
   =
 struct
+  exception NotUTF8
+  exception RuntimeError of string
+
   fun printUTF8 code =
     let val w = Word.fromInt code
         val (&, >>) = (Word.andb, Word.>>)
@@ -37,9 +40,9 @@ struct
  
   (* prefixes
        0xxxxxxx <= 0wx7f
-       110xxxxx <= 0xwdf
-       1110xxxx <= 0xwef
-       11110xxx <= 0xwf7
+       110xxxxx <= 0wxdf
+       1110xxxx <= 0wxef
+       11110xxx <= 0wxf7
   *)
 
   fun decodeUTF8 [] = NONE
@@ -48,11 +51,11 @@ struct
         in  if w <= 0wx7f then
                (w, cs)
             else if w <= 0wxdf then
-              decode (Word.andb (w, 0xw1f)) 1 cs
+              decode (Word.andb (w, 0wx1f)) 1 cs
             else if w <= 0wxef then
-              decode (Word.andb (w, 0xw0f)) 2 cs
+              decode (Word.andb (w, 0wx0f)) 2 cs
             else if w <= 0wxf7 then
-              decode (Word.andb (w, 0xw07)) 3 cs
+              decode (Word.andb (w, 0wx07)) 3 cs
             else
               raise NotUTF8
         end
@@ -65,8 +68,8 @@ struct
             val op && = Word.andb
         in  if w < 0wx80 then
               raise NotUTF8
-            else if w <= 0xwbf then
-              decode ((prefix << 0w6) + (w && 0xw3f)) (n - 1) cs
+            else if w <= 0wxbf then
+              decode ((prefix << 0w6) + (w && 0wx3f)) (n - 1) cs
             else
               raise NotUTF8
         end

@@ -21,6 +21,7 @@ sig
   datatype result = OK of (token * pos) list | ERR of string
 
   val lexJSON : string -> result
+  val toString : token list -> string
 end
 
 signature JSON_PARSER = 
@@ -38,6 +39,15 @@ sig
   datatype result = OK of jvalue list | ERR of string
 
   val parseJSON : string -> result
+end
+
+signature JSON_VALIDATOR = 
+sig
+  datatype result = VALID | ERR of string
+  type filename = string
+
+  val validateJSON : filename -> result
+  val validateJSON_IO : filename -> unit
 end
 
 structure Utility =
@@ -110,7 +120,7 @@ struct
     type error = string
 
     fun toString e = e
-    val default = "Lexer failed."
+    val default = "invalid token, expected literal or structural token"
   end
 
   structure P = Parser(ParserError)(struct 
@@ -134,7 +144,7 @@ struct
   fun mapPos cs = 
   let
     val linebreaks = [#"\r", #"\n"]
-    fun f ((row, col), c) = if elem c linebreaks then (row + 1, 0)
+    fun f ((row, col), c) = if elem c linebreaks then (row + 1, 1)
                             else (row, col + 1)
     val positions = scanl f (1, 1) cs
   in
@@ -208,7 +218,7 @@ struct
   let 
     val tok = P.optional whiteSpace *> token <* P.optional whiteSpace
   in
-    P.many (addPos tok)
+    P.many (addPos tok) <* P.eof
   end
 
   fun lexJSON str = 
@@ -219,6 +229,20 @@ struct
          (_, P.OK a) => OK a
        | (_, P.ERR s) => ERR s
   end
+
+  fun tokToString (STRUCTURAL LBRACKET) = "LBRACKET"
+    | tokToString (STRUCTURAL RBRACKET) = "RBRACKET"
+    | tokToString (STRUCTURAL LBRACE) = "LBRACE"
+    | tokToString (STRUCTURAL RBRACE) = "RBRACE"
+    | tokToString (STRUCTURAL COLON) = "COLON"
+    | tokToString (STRUCTURAL COMMA) = "COMMA"
+    | tokToString (LIT (STR str)) = "STR: " ^ str
+    | tokToString (LIT (NUM n)) = "NUM: " ^ (Real.toString n)
+    | tokToString (LIT (BOOL true)) = "BOOL: true"
+    | tokToString (LIT (BOOL false)) = "BOOL: false"
+    | tokToString (LIT NULL) = "NULL"
+    
+  fun toString toks = String.concatWith "\n" (map tokToString toks)
 end
 
 functor JSONParserFromLexer (L:JSON_LEXER) :> JSON_PARSER =
@@ -290,20 +314,44 @@ struct
     | commaL _ = NONE
 
   fun unLens lens = P.option (lens <$> oneTok)
-  fun manySep p = (curry op ::) <$> p <*> P.many (unLens commaL *> p)
+
+  fun error p msg = 
+  let 
+    val getPos = snd <$> P.lookahead
+    val pos = getPos
+    fun stringify (row, col) = 
+      "row " ^ Int.toString row ^ " col " ^ Int.toString col
+    fun createErr pos = msg ^ " at " ^ (stringify pos) ^ "."
+  in
+    getPos >>= (fn pos => P.withError (createErr pos) p )
+  end
+
+  val literal = error (unLens literalL) "expected literal"
+  val string = error (unLens stringL) "expected string key"
+  val lbracket = error (unLens lbracketL) "expected ["
+  val rbracket = error (unLens rbracketL) "expected ]" 
+  val lbrace = error (unLens lbraceL) "expected {"
+  val rbrace = error (unLens rbraceL) "expected }"
+  val colon = error (unLens colonL) "expected :"
+  val comma = error (unLens commaL) "expected ,"
+
+  fun manySep p = curry op :: <$> p <*> P.many (P.commits comma *> p)
+
   fun between (s1, s2) p = s1 *> p <* s2
 
   val literal = unLens literalL
   
   fun member _ = fn cs => 
-    (tup <$> (unLens stringL <* unLens commaL) <*> value()) cs
-  and object _ = fn cs => (between ((unLens lbraceL), (unLens rbraceL)) 
+    (tup <$> (string <* colon) <*> value()) cs
+  and object _ = fn cs => (between (P.commits lbrace, rbrace) 
     (OBJ <$> manySep (member ()))) cs
-  and array _ = fn cs => (between ((unLens lbracketL), (unLens rbracketL))
+  and array _ = fn cs => (between (P.commits lbracket, rbracket)
     (ARR <$> manySep (value ()))) cs
   and value _ = fn cs => (literal <|> object () <|> array ()) cs
 
-  val values = P.many (value ())
+  val values = P.many1 (value ())
+
+  fun debug e s = let val _ = print (s ^ "\n") in e end
 
   fun parseJSON' (toks : (L.token * L.pos) list) : result = 
     case (P.runParser values toks) of
@@ -311,7 +359,6 @@ struct
        | (_, P.OK vals) => OK vals
 
   fun parseJSON str = 
-    (* (token * position) list *)
     case (L.lexJSON str) of
          (L.ERR e) => ERR e
        | (L.OK toks) => parseJSON' toks
@@ -422,7 +469,7 @@ struct
   and jValue _ = 
     fn cs => (P.alt [jString, jNull, jBool, jNumber, jArray (), jObject ()]) cs
 
-  val jValues = P.many (jValue ())
+  val jValues = P.many1 (jValue ())
  
   fun parseJSON str = 
     case (P.runParser jValues (explode str)) of
@@ -445,4 +492,26 @@ struct
   and memberToString (str, v) = "\"" ^ str ^ "\"" ^ " : " ^ (toString v) 
   and arrToString str = (toString str) ^ ", "
   *)
+end
+
+functor JSONValidatorFromParser(P:JSON_PARSER) :> JSON_VALIDATOR =
+struct
+  datatype result = VALID | ERR of string
+  type filename = string
+
+  fun validateJSON file = 
+  let
+    val stream = TextIO.openIn file
+    val contents = TextIO.inputAll stream
+    val output = P.parseJSON contents
+  in
+    case output of 
+         (P.OK _) => VALID
+       | (P.ERR e) => ERR e
+  end
+
+  fun validateJSON_IO file = 
+    case validateJSON file of
+         VALID => print "JSON is valid.\n"
+       | (ERR e) => print ("JSON is invalid.\nError: " ^ e ^ "\n")
 end

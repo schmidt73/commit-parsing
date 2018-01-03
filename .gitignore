@@ -1,4 +1,5 @@
 *~
 lib/.cm/*
 tests/.cm/*
+tests/json/.cm/*
 

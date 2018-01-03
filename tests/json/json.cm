@@ -1,0 +1,7 @@
+Group is
+  validator-tests.sml
+  parser-tests.sml
+  json.sml
+  ../../lib/parser.cm
+  $/basis.cm
+  $/smlnj-lib.cm

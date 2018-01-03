@@ -45,7 +45,9 @@ structure Main =
 struct 
   val tests = List.concat [
     JParserTests.tests,
-    JParserWithLexerTests.tests
+    JParserWithLexerTests.tests,
+    ValidatorTests.tests
   ]
+
   val _ = Tests.runTests tests
 end
