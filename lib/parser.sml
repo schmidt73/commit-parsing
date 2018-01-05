@@ -69,9 +69,12 @@ sig
   val alt : ('a parser) list -> 'a parser
   val sequence : ('a parser) list -> ('a list) parser
 
- (* A parser that looks at the next token without 
-  * consuming any input, if it fails to consume 
-  * input it will nope *)
+  (* Converts a parser into one that consumes 
+   * no input. On failure it will act as the input
+   * parser. *)
+  val rewind : 'a parser -> 'a parser
+
+  (* lookahead = rewind one *)
   val lookahead : token parser
 
  (* Committing a parser means that on success, the parser "commits" to 
@@ -157,8 +160,13 @@ struct
   fun sequence [] = succeed []
     | sequence (x :: xs) = curry op :: <$> x <*> sequence xs
 
-  fun lookahead [] = nope []
-    | lookahead (x :: xs) = (x::xs, SUCCESS x)
+  fun rewind p = fn xs =>
+    case p xs of
+         (_, SUCCESS a) => (xs, SUCCESS a)
+       | (_, COMMIT a) => (xs, COMMIT a)
+       | def => def
+
+  val lookahead : token parser = rewind one
 
   fun commits p = fn xs =>
     case p xs of
