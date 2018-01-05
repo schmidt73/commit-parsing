@@ -83,6 +83,9 @@ sig
   val commits : 'a parser -> 'a parser
   val nocommits : 'a parser -> 'a parser
 
+  val commit : unit parser
+  val nocommit : unit parser
+
   val runParser : 'a parser -> token list -> token list * 'a outcome
 end
 
@@ -177,6 +180,9 @@ struct
     case p xs of
          (xs', COMMIT a) => (xs', SUCCESS a)
        | def => def
+
+  val commit : unit parser = commits (succeed ())
+  val nocommit : unit parser = nocommits (succeed ())
 
   fun runParser p xs = 
     case p xs of
