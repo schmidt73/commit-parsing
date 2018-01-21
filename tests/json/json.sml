@@ -404,7 +404,7 @@ struct
   struct
     type error = string
 
-    fun toString e = e
+    val toString = id
     val default = "Bad json."
   end
 

@@ -29,7 +29,8 @@ while in the latter it can not.
 
 The following laws describe that more idea concretely. When defining 
 laws, assume p represents an arbitrary parser and good represents an 
-arbitrary parser that always succeeds. All laws evaluate to true.
+arbitrary parser that always succeeds. All laws evaluate to true. 
+Applicative notation is taken from standard Haskell .
 
 ```sml
 val backtrackLaw   = nope <|> p = p
@@ -117,5 +118,79 @@ failure and avoid excess computation.
 ### Errors
 ----------
 
+Errors are layered on top of this idea of commitment.
+They can be of any type. While both failure and nope hold errors,
+nope doesn't imply absolute failure as it can
+be recovered from.
 
+A simple parser representing errors as strings and tokens as
+characters is defined below:
+
+```sml
+    structure TOKEN = struct type token = char end
+    structure ERROR = 
+    struct
+        type error = string
+        
+        val toString = id
+        val default = "Bad input."
+    end
+
+    structure PARSER = Parser(ERROR)(TOKEN)
+```
+
+The withError function allows for the parser to emit error values. It's
+type signature is as follows:
+
+```sml
+val withError : error -> 'a parser -> 'a parser
+```
+
+Examples along with descriptions of their semantics will help to 
+clarify the use of the withError function.
+
+```sml
+(* Emits error e when p produces a nope or a failure. The context
+ * in which the error is contained carries over from p. *)
+val simpleError = withError e p 
+
+(* Emits an error e in a failure context when p produces a nope.
+ * When p produces failure p's error will be propagated upwards. *)
+val forceFailure = p <|> withError e fail
+
+(* Emits an error e in a nope context when p produces a nope. 
+ * When produces failure p's error will be propagated upward. *)
+val forceNope = p <|> withError e nope
+```
+
+As we can see there are many ways to emit errors, each having
+a subtle difference. 
+
+It is also important to note the following law:
+
+```sml
+val equivelanceLaw = withError e nope ~= withError e fail
+
+val willSucceed = withError e nope <|> succeed ()
+val willFail = withError e fail <|> succeed ()
+```
+
+As expected, willSucceed will always succeed and willFail will always
+fail. The preceding implies that the equivelance law must be true. 
+
+Now, we can finally add errors to our trivial ifThenElse example.
+
+```sml
+val newIf = withError "Unknown expression" (commits ifP)
+val ifThenElse = threeTup <$> (newIf *> expr) <*> 
+    (withError "Expected if-then-else expression" 
+    ((thenP *> expr) <*> (elseP *> expr)))
+```
+
+Then on input such as "i am not an expression" the output will be a
+nope with an error message "Unknown expression". On an input such as
+"if ex1 ahdfjahsfdasfda" the output will be a failure with an error
+message "Expected if-then-else expression". This is exactly what we
+desire: to differentiate between complete failure and unrecognizable
+input while providing accurate error messages.
 
