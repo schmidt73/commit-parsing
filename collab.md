@@ -7,7 +7,10 @@ body of techniques for creating computer software.  Functional
 programming is notable for its expressive power: instead of being
 shackled to the language of the computer, functional programmers can
 often express software solutions using the same language we use to
-think about problems.  Professor Ramsey also has a longstanding interest in
+think about problems.  Mr. Schmidt has recently developed interest
+in modeling problems in the abstract manner we speak of, coming to
+Professor Ramsey to share his interest in the fall.  Professor Ramsey 
+also has a longstanding interest in
 (and international reputation for) the implementation of programming
 languages, an interest that Mr. Schmidt shares.
 
